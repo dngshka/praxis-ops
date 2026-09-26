@@ -109,6 +109,12 @@ rootless="$(as_sbx podman info --format '{{.Host.Security.Rootless}}' 2>/dev/nul
 [[ "$rootless" == "true" ]] && ok "running rootless" || bad "NOT rootless (got '$rootless')"
 cgv="$(as_sbx podman info --format '{{.Host.CgroupsVersion}}' 2>/dev/null)"
 [[ "$cgv" == "v2" ]] && ok "cgroups $cgv" || bad "cgroups $cgv, need v2"
+# Without fuse-overlayfs every sandbox slice copies its whole image
+# (30-podman-policy.sh, storage.conf). Also catches a reset that dropped
+# the user's storage.conf.
+as_sbx podman info --format '{{json .Store.GraphOptions}}' 2>/dev/null | grep -q 'fuse-overlayfs' \
+  && ok "overlay mounts through fuse-overlayfs (no per-slice image copies)" \
+  || bad "overlay does not use fuse-overlayfs -- every sandbox slice will copy its image"
 
 # --- container-side ----------------------------------------------------------
 if [[ -z "$IMAGE" ]]; then

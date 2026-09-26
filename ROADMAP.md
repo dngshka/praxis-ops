@@ -227,7 +227,17 @@ into `main` closes this phase.
    **Integration is starting now, not hypothetical** — apidoc access was
    handed over 2026-09-13. Go-forward plan, prioritized by who pays when
    it goes wrong: `docs/portal-integration-plan.md`.
-4. **MVP2: real fix for cumulative subordinate-UID slice exhaustion**
+4. **Update 2026-09-26: largely addressed by fuse-overlayfs, pending a
+   run on `praxis-sbx`'s store.** Measured in throwaway stores on this
+   host (`docs/capacity-benchmark.md`, "the copies are a cache"): after
+   every container was removed, the next spawn got the first slice again
+   (`0:1:1024`) and reused its copy in 0.15 s, and `podman rmi` removed
+   every copy of the image. With `mount_program = fuse-overlayfs`, now the
+   default in `bootstrap/30-podman-policy.sh`, no copy is made at all. What
+   remains of the entry below: confirm it on `praxis-sbx`'s store (switch,
+   `90-storage-reset-rebuild.sh`, containment checks, a staircase).
+
+   **MVP2: real fix for cumulative subordinate-UID slice exhaustion**
    (2026-09-10 disk-leak finding, confirmed live 2026-09-14/15 as a
    ~1024-spawns-per-reset budget — a separate constraint from the
    "concurrency ceiling," not the same mechanism; an earlier draft of this

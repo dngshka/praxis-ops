@@ -44,6 +44,14 @@
 # is a full nuke, not a smarter partial one: we don't yet have a version of
 # "smarter" that's actually been proven safe on this host.
 #
+# Update 2026-09-26 (docs/capacity-benchmark.md, "the copies are a cache"):
+# measured on podman 5.7.0, the copies belong to an (image, uid slice) pair,
+# are reused on that slice, and `podman rmi` of the image removes all of
+# them. With fuse-overlayfs as the store's mount program
+# (30-podman-policy.sh) no copy is made at all. This script is still how a
+# store switches to fuse-overlayfs, and how one that already holds copies
+# from before gets rid of them.
+#
 # Trigger: watch hostmon's praxis_storage_free_bytes (unauthenticated,
 # :9102/metrics). This is a manual, rare, deliberate call, not a monitored
 # threshold with an automatic response -- storage operations on this host

@@ -375,6 +375,46 @@ Proposed, not built.
 
 ---
 
+## 2026-09-26 — the copies are a cache, and fuse-overlayfs removes them
+
+Run from the praxis side (the UET demo stopped at 5-6 Medusa sandboxes) in
+throwaway rootless stores as the `praxis` user, not in `praxis-sbx`'s store
+and not through the orchestrator: same host, podman 5.7.0, kernel
+7.0.0-34, the orchestrator's systemd-tier spawn flags (`container.go`
+`spec()`), `mountopt=nodev`, and the real praxis MED-05/06 images. Full
+write-up: praxis repo, `sandbox/docs/store-experiment-2026-09-26.md` on
+branch `feat/sandbox-session`.
+
+| | kernel overlay (current) | `mount_program = fuse-overlayfs` |
+|---|---|---|
+| 3 concurrent MED-06 spawns | 154 s each | 0.16-0.25 s |
+| store growth per sandbox | ~115k inodes, ~1.4 GB at rest | none (+62 inodes for 3) |
+| after `podman rm` of all | copies stay | nothing to stay |
+| respawn on a used slice | 0.15 s, copy reused | 0.2 s |
+| `podman rmi` of the image | removes every copy of it | n/a |
+| 8 concurrent MED-06 | not run | all < 1 s, app healthy in ~24 s, ~0.5 GB RAM each |
+| file reads inside (node_modules, warm) | 1.4 s | 4.4 s |
+
+What it changes above:
+- **Not a per-spawn leak.** A copy belongs to an (image, uid slice) pair. It
+  outlives the container and is reused by the next container of that image
+  on that slice, and `podman rmi` of the image removes all its copies. The
+  store grows with images x peak concurrent slices; an image rebuild that
+  removes the old image reclaims its copies. The 2026-09-10 orphans were
+  found on a store that `podman save`/`system check` had also damaged; that
+  is not reproduced here.
+- **fuse-overlayfs makes no copies**, so the store stays at the size of its
+  images, first spawns stop costing minutes, and the binding constraint
+  becomes RAM/CPU. It is now the store default in
+  `bootstrap/30-podman-policy.sh`, checked by `50-verify.sh`.
+- Not measured: more than 8 concurrent sandboxes, the ~60-64 ceiling of
+  "Known host constraint" under fuse-overlayfs (its error comes from the
+  ID-mapped copy path, which fuse-overlayfs does not take), and
+  `praxis-sbx`'s own store after the switch -- re-run `50-verify.sh`,
+  `security/verify-shell-isolation.sh` and a staircase there.
+
+---
+
 ## 2026-09-03 — SJN-01, weight 16 — SUPERSEDED, see 2026-09-04/05 below
 
 **This entry does not measure SJN-01.** `bench/staircase.sh`'s `IMAGE` is

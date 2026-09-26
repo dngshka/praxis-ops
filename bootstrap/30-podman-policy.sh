@@ -80,6 +80,16 @@ additionalimagestores = []
 [storage.options.overlay]
 # nodev: a sandbox layer can never carry a usable device node.
 mountopt = "nodev"
+# fuse-overlayfs maps uids itself. With the kernel overlay driver, rootless
+# podman gives every userns=auto slice its own chowned copy of the whole
+# image, kept until the image is removed: ~115k inodes, ~1.4 GB and ~150 s
+# per Medusa sandbox, which capped the praxis UET demo at 5-6 sandboxes on
+# this store. Measured 2026-09-26 (docs/capacity-benchmark.md): with this
+# line a sandbox spawns in under a second and the store does not grow; file
+# reads inside the sandbox are 2-3x slower.
+# Switching an existing store: run 90-storage-reset-rebuild.sh afterwards,
+# the copies already made stay until their images are removed.
+mount_program = "/usr/bin/fuse-overlayfs"
 EOF
 
 # --- registries.conf ---------------------------------------------------------
