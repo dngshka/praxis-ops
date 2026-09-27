@@ -69,7 +69,7 @@ type Runbook struct {
 	// overlay. Under fuse-overlayfs every file a sandbox reads goes through a
 	// userspace daemon; a Medusa sandbox reads ~97k files of node_modules at
 	// boot, and 20 of them starting at once on a 4-thread host were ready in
-	// 64 s through fuse-overlayfs and 47 s with node_modules served this way
+	// 63-68 s through fuse-overlayfs and 47-49 s with node_modules served this way
 	// (docs/capacity-benchmark.md, 2026-09-27). Only for trees the candidate
 	// never needs to change: the mount is read-only.
 	//

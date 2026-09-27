@@ -429,7 +429,7 @@ probe that forks almost nothing. Full write-up: praxis repo,
 | 20 at once, slowest ready | kernel overlay | fuse-overlayfs | fuse-overlayfs + `shared_from_image` |
 |---|---|---|---|
 | 10 MED-05 + 10 MED-06 | 23 min (copies made one after another, ~70 s each) | 35-41 s | 27-29 s |
-| 20 MED-06 | not run | 64-68 s | 47-49 s |
+| 20 MED-06 | not run | 63-68 s | 47-49 s |
 | CPU for 20 MED-06 boots | -- | sandboxes ~200 s, fuse-overlayfs ~30 s | sandboxes ~160 s, fuse-overlayfs ~6-8 s |
 
 - **Switching an existing store needs no reset.** A store made on the kernel
