@@ -87,8 +87,11 @@ mountopt = "nodev"
 # this store. Measured 2026-09-26 (docs/capacity-benchmark.md): with this
 # line a sandbox spawns in under a second and the store does not grow; file
 # reads inside the sandbox are 2-3x slower.
-# Switching an existing store: run 90-storage-reset-rebuild.sh afterwards,
-# the copies already made stay until their images are removed.
+# Switching an existing store needs no reset (measured 2026-09-27): the
+# copies already made stay until their images are removed, so rmi and load
+# each image again to reclaim them; the image IDs do not change. Switching
+# back does need 90-storage-reset-rebuild.sh: the store records
+# overlay/.has-mount-program and keeps using fuse-overlayfs without this line.
 mount_program = "/usr/bin/fuse-overlayfs"
 EOF
 

@@ -48,9 +48,10 @@
 # measured on podman 5.7.0, the copies belong to an (image, uid slice) pair,
 # are reused on that slice, and `podman rmi` of the image removes all of
 # them. With fuse-overlayfs as the store's mount program
-# (30-podman-policy.sh) no copy is made at all. This script is still how a
-# store switches to fuse-overlayfs, and how one that already holds copies
-# from before gets rid of them.
+# (30-podman-policy.sh) no copy is made at all, and a store switches to it
+# without this script (rmi + load reclaims each image's old copies). This
+# script is how a store switches back: once used with fuse-overlayfs, a
+# store keeps using it until it is reset.
 #
 # Trigger: watch hostmon's praxis_storage_free_bytes (unauthenticated,
 # :9102/metrics). This is a manual, rare, deliberate call, not a monitored
