@@ -33,6 +33,11 @@ Environment=PRAXIS_LISTEN=127.0.0.1:8081
 Environment=PRAXIS_CAPACITY_WEIGHT=35
 Environment=PRAXIS_REAP_INTERVAL=30
 Environment=PRAXIS_EXEC_TIMEOUT=120
+# Runbook.shared_from_image: <dir>/<image id>/<path> copies of image trees,
+# served read-only (docs/capacity-benchmark.md, 2026-09-27). Written by the
+# operator's image loader; a missing dir or copy only means the sandbox runs
+# from its image. Remove the line to switch the feature off.
+Environment=PRAXIS_SHARED_DIR=%h/shared
 # Shared secret with the portal. Keep it out of the unit file in anything but a POC.
 EnvironmentFile=%h/.config/praxis/orchestrator.env
 

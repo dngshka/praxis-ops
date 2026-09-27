@@ -56,6 +56,16 @@ func main() {
 	}
 	defer backend.Close()
 
+	// Runbook.SharedFromImage: host copies of image trees, served read-only.
+	// Optional and never fatal: without it every sandbox runs from its image.
+	if dir := os.Getenv("PRAXIS_SHARED_DIR"); dir != "" {
+		if err := backend.SetSharedDir(dir); err != nil {
+			log.Error("PRAXIS_SHARED_DIR unusable; sandboxes run from their images alone", "err", err)
+		} else {
+			log.Info("serving shared_from_image paths", "dir", dir)
+		}
+	}
+
 	reg := metrics.NewRegistry("orchestrator", version)
 
 	// backend.RawClient() satisfies metrics.Lister structurally (it's

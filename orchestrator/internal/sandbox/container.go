@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -31,9 +34,58 @@ import (
 // user that owns nothing rather than as root on the box hosting GitLab.
 type ContainerBackend struct {
 	cli *client.Client
+
+	// sharedDir is PRAXIS_SHARED_DIR with symlinks resolved, or "" when the
+	// host serves nothing from it (see Runbook.SharedFromImage).
+	sharedDir string
 }
 
 var _ Backend = (*ContainerBackend)(nil)
+
+// SetSharedDir enables Runbook.SharedFromImage: dir holds one directory per
+// image ID, each a copy of that image's paths, written by the operator's
+// image loader and readable by the sandbox user. Everything under it is
+// mounted read-only, so it must only ever hold image content.
+func (b *ContainerBackend) SetSharedDir(dir string) error {
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return fmt.Errorf("shared dir: %w", err)
+	}
+	fi, err := os.Stat(real)
+	if err != nil {
+		return fmt.Errorf("shared dir: %w", err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("shared dir %s is not a directory", real)
+	}
+	b.sharedDir = real
+	return nil
+}
+
+// sharedMounts turns rb.SharedFromImage into read-only bind mounts of
+// <sharedDir>/<image id><path>. A path the host has no copy of is left to the
+// image: the mount saves time, it never changes what the sandbox contains. A
+// copy reached through a symlink is refused, so nothing outside sharedDir can
+// be mounted into a sandbox.
+func (b *ContainerBackend) sharedMounts(rb Runbook) []mount.Mount {
+	if b.sharedDir == "" || len(rb.SharedFromImage) == 0 {
+		return nil
+	}
+	id := localImageRef(rb.Image)
+	if len(id) != 64 || strings.Trim(id, "0123456789abcdef") != "" {
+		return nil
+	}
+	var out []mount.Mount
+	for _, p := range rb.SharedFromImage {
+		src := filepath.Join(b.sharedDir, id, filepath.FromSlash(p))
+		real, err := filepath.EvalSymlinks(src)
+		if err != nil || real != src {
+			continue
+		}
+		out = append(out, mount.Mount{Type: mount.TypeBind, Source: src, Target: p, ReadOnly: true})
+	}
+	return out
+}
 
 func NewContainerBackend() (*ContainerBackend, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -68,6 +120,14 @@ func (b *ContainerBackend) Create(ctx context.Context, attemptID string, rb Runb
 	now := time.Now().UTC()
 	expires := now.Add(rb.TTL())
 	cfg, hostCfg := b.spec(rb, attemptID, now, expires)
+	if mounts := b.sharedMounts(rb); len(mounts) > 0 {
+		hostCfg.Mounts = mounts
+		targets := make([]string, 0, len(mounts))
+		for _, m := range mounts {
+			targets = append(targets, m.Target)
+		}
+		cfg.Labels[LabelShared] = strings.Join(targets, ",")
+	}
 
 	created, err := b.cli.ContainerCreate(ctx, cfg, hostCfg, nil, nil, name)
 	if err != nil {

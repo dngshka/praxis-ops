@@ -34,6 +34,10 @@ const (
 	// gets one of these regardless of whether the caller set DiskLimit.
 	LabelDiskLimit = "praxis.disk-limit-bytes"
 
+	// LabelShared lists the Runbook.SharedFromImage paths this sandbox got
+	// from the host's copy (comma-separated); absent when it got none.
+	LabelShared = "praxis.shared-from-image"
+
 	ManagedValue = "praxis-orchestrator"
 	NamePrefix   = "sbx-"
 

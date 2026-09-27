@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -61,7 +62,24 @@ type Runbook struct {
 	// was left of real host disk. Empty/unparseable does NOT mean "no cap":
 	// see EffectiveDiskLimitBytes, same reasoning as EffectiveWeight.
 	DiskLimit string `yaml:"disk_limit" json:"disk_limit,omitempty"`
+
+	// SharedFromImage lists paths of the image that the host may serve
+	// read-only from its own copy of this same image's tree
+	// (<PRAXIS_SHARED_DIR>/<image id><path>), instead of through the store's
+	// overlay. Under fuse-overlayfs every file a sandbox reads goes through a
+	// userspace daemon; a Medusa sandbox reads ~97k files of node_modules at
+	// boot, and 20 of them starting at once on a 4-thread host were ready in
+	// 64 s through fuse-overlayfs and 47 s with node_modules served this way
+	// (docs/capacity-benchmark.md, 2026-09-27). Only for trees the candidate
+	// never needs to change: the mount is read-only.
+	//
+	// An optimisation, never a requirement: with PRAXIS_SHARED_DIR unset, or
+	// no host copy for this image, the sandbox runs from the image as before.
+	SharedFromImage []string `yaml:"shared_from_image" json:"shared_from_image,omitempty"`
 }
+
+// maxSharedFromImage bounds SharedFromImage; a ticket needs one or two.
+const maxSharedFromImage = 8
 
 // scenarioFile is the subset of tickets/<KEY>/scenario.yaml the orchestrator
 // reads. It deliberately ignores star, brief, difficulty and detect: the
@@ -121,6 +139,19 @@ func (r Runbook) Validate() error {
 	}
 	if r.PidsLimit <= 0 {
 		return fmt.Errorf("%w: pids_limit must be positive", ErrInvalidRunbook)
+	}
+	if len(r.SharedFromImage) > maxSharedFromImage {
+		return fmt.Errorf("%w: at most %d shared_from_image paths, got %d", ErrInvalidRunbook, maxSharedFromImage, len(r.SharedFromImage))
+	}
+	for _, p := range r.SharedFromImage {
+		if !path.IsAbs(p) || path.Clean(p) != p || p == "/" {
+			return fmt.Errorf("%w: shared_from_image path must be absolute, clean and not /, got %q", ErrInvalidRunbook, p)
+		}
+		for _, kernel := range []string{"/proc", "/sys", "/dev"} {
+			if p == kernel || strings.HasPrefix(p, kernel+"/") {
+				return fmt.Errorf("%w: shared_from_image cannot cover %s, got %q", ErrInvalidRunbook, kernel, p)
+			}
+		}
 	}
 	return nil
 }

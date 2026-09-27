@@ -415,6 +415,48 @@ What it changes above:
 
 ---
 
+## 2026-09-27 — a class launching together: fuse-overlayfs, then `shared_from_image`
+
+Same setup as 2026-09-26 (throwaway store as `praxis`, never `praxis-sbx`'s),
+plus this branch's orchestrator driving a podman API service on that store,
+so launches go through `POST /instances` exactly as the portal sends them.
+20 sandboxes launched at the same second; "ready" = the student can see the
+ticket's problem (MED-05: Medusa failed its DB check; MED-06: Medusa up and
+Postgres' slots held by the leaking report role), watched from inside by a
+probe that forks almost nothing. Full write-up: praxis repo,
+`sandbox/docs/launch-time-2026-09-27.md` on `feat/sandbox-session`.
+
+| 20 at once, slowest ready | kernel overlay | fuse-overlayfs | fuse-overlayfs + `shared_from_image` |
+|---|---|---|---|
+| 10 MED-05 + 10 MED-06 | 23 min (copies made one after another, ~70 s each) | 35-41 s | 27-29 s |
+| 20 MED-06 | not run | 64-68 s | 47-49 s |
+| CPU for 20 MED-06 boots | -- | sandboxes ~200 s, fuse-overlayfs ~30 s | sandboxes ~160 s, fuse-overlayfs ~6-8 s |
+
+- **Switching an existing store needs no reset.** A store made on the kernel
+  driver works through fuse-overlayfs at once; `rmi` + `load` from the
+  original tar reclaims an image's old copies and gives back the same image
+  ID. The first fuse-overlayfs mount writes `overlay/.has-mount-program`, and
+  the store keeps using fuse-overlayfs even with the line removed from
+  `storage.conf`: going back needs `90-storage-reset-rebuild.sh`.
+- **What is left is CPU.** A Medusa start costs ~5 CPU-seconds whatever the
+  driver (Node compile cache, V8 flags and `NODE_ENV` changed nothing), so 20
+  saturate 4 threads. Under fuse-overlayfs another ~15% goes to the daemon
+  serving ~97k `node_modules` reads per boot.
+- **`Runbook.SharedFromImage`** (this branch) takes those reads off fuse: the
+  orchestrator bind-mounts `<PRAXIS_SHARED_DIR>/<image id><path>` read-only
+  over the image's path, when the host has such a copy. The praxis loader
+  (`load-sandbox-image.sh`) makes it from the loaded image itself. Inside the
+  sandbox the tree is owned by `nobody` (no idmapped mounts rootless) and
+  read-only. Every MED-05/06 fix and sabotage in the ticket's `fixes.yaml`
+  grades as before on sandboxes started this way.
+- `fsync=0,fast_ino=1` passed to fuse-overlayfs (`overlay.mountopt`) saved
+  ~4 CPU-seconds of 230 and no wall time; not adopted.
+- Not run here: `50-verify.sh` / `verify-shell-isolation.sh` on
+  `praxis-sbx`'s store (need sudo), and the ~60-64 ceiling of "Known host
+  constraint" under fuse-overlayfs.
+
+---
+
 ## 2026-09-03 — SJN-01, weight 16 — SUPERSEDED, see 2026-09-04/05 below
 
 **This entry does not measure SJN-01.** `bench/staircase.sh`'s `IMAGE` is
